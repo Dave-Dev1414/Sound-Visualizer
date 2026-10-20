@@ -214,8 +214,9 @@ function App() {
   }
   async function toggleMicrophone() {
     try {
-      if (micActive) { engineRef.current?.disableMicrophone(); setMicActive(false); setMicError(''); return }
+      if (micActive) { engineRef.current?.disableMicrophone(); setAnalyser(engineRef.current?.getAnalyser() ?? null); setMicActive(false); setMicError(''); return }
       const engine = getEngine()
+      engine.setMaster(master)
       await engine.enableMicrophone()
       setAnalyser(engine.getAnalyser())
       setMicActive(true)
