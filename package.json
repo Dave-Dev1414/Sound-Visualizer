@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node backend/server.mjs",
-    "dev:full": "node scripts/dev.mjs"
+    "dev:full": "node scripts/dev.mjs",
+    "test:api": "node scripts/test-api.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",
