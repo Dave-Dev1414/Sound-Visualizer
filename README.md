@@ -26,21 +26,15 @@ Install the frontend dependencies once:
 npm install
 ```
 
-Open **Terminal 1** and start the API:
+Start both the API and frontend in one terminal:
 
 ```bash
-npm run server
+npm run dev:full
 ```
 
-The API listens at `http://localhost:8787`. It saves the current session settings to `backend/data/session.json` when you press **Save**. That local data file is ignored by Git.
+This launches the API at `http://localhost:8787` and the frontend at the Vite URL shown in the terminal (normally `http://localhost:5173`). Vite proxies `/api` requests to the local API. If you prefer separate terminals, use `npm run server` and `npm run dev` respectively.
 
-Open **Terminal 2** and start the frontend:
-
-```bash
-npm run dev
-```
-
-Open the Vite URL shown in the terminal (normally `http://localhost:5173`). Vite proxies `/api` requests to the local API.
+The API saves the current session settings to `backend/data/session.json` when you press **Save**. That local data file is ignored by Git.
 
 The frontend can still run without the API. Session settings are then saved in the browser's local storage instead.
 
