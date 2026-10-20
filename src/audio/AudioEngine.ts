@@ -30,7 +30,6 @@ export class AudioEngine {
       this.analyser = analyser
       this.master = master
       master.gain.value = 0.78
-      this.setCrossfade(50)
     }
     return this.context
   }
