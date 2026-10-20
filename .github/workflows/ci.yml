@@ -24,3 +24,5 @@ jobs:
         run: npm run lint
       - name: Check backend syntax
         run: node --check backend/server.mjs
+      - name: Test backend API
+        run: npm run test:api
