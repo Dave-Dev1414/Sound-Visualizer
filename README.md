@@ -43,6 +43,7 @@ The frontend can still run without the API. Session settings are then saved in t
 ```bash
 npm run build
 npm run lint
+npm run test:api
 ```
 
 Check the API separately at `http://localhost:8787/api/health`; it should return JSON with `"status":"ok"`.
