@@ -1,250 +1,252 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import './App.css'
+import { AudioEngine, type DeckId, type EqBand } from './audio/AudioEngine'
 
-type IconName = 'activity' | 'audio' | 'chevron' | 'circle' | 'disc' | 'folder' | 'layers' | 'mic' | 'more' | 'pause' | 'play' | 'plus' | 'settings' | 'spark' | 'upload' | 'volume'
-
-function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
-  const shared = {
-    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
-    stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const, 'aria-hidden': true as const,
-  }
+type SessionSnapshot = { name: string; master: number; crossfade: number; visualMode: 'spectrum' | 'waveform'; eq: Record<DeckId, Record<EqBand, number>>; deckGain: Record<DeckId, number> }
+type IconName = 'audio' | 'folder' | 'mic' | 'play' | 'pause' | 'back' | 'forward' | 'upload' | 'settings' | 'chevron' | 'activity' | 'sliders' | 'wave' | 'disc' | 'plus' | 'headphones' | 'panel' | 'more' | 'music' | 'check' | 'volume'
+function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
-    activity: <path d="M3 12h3l3-8 5 16 3-8h4" />,
     audio: <><path d="M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4M22 11v2" /></>,
-    chevron: <path d="m9 18 6-6-6-6" />,
-    circle: <circle cx="12" cy="12" r="8" />,
-    disc: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /><path d="M12 3v6" /></>,
     folder: <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H10l2 2h7.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />,
-    layers: <><path d="m12 3 9 5-9 5-9-5z" /><path d="m3 12 9 5 9-5M3 16l9 5 9-5" /></>,
     mic: <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" /></>,
-    more: <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
-    pause: <><path d="M9 5v14M15 5v14" /></>,
     play: <path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none" />,
+    pause: <><path d="M9 5v14M15 5v14" /></>,
+    back: <><path d="M6 5v14M19 6l-10 6 10 6z" /></>,
+    forward: <><path d="M18 5v14M5 6l10 6-10 6z" /></>,
+    upload: <><path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="m19 15 2 1-2 3-2-1-2 1v2h-4v-2l-2-1-2 1-2-3 2-1v-2l-2-1 2-3 2 1 2-1V7h4v2l2 1 2-1 2 3-2 1z" /></>,
+    chevron: <path d="m9 18 6-6-6-6" />,
+    activity: <path d="M3 12h3l3-8 5 16 3-8h4" />,
+    sliders: <><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></>,
+    wave: <path d="M2 12h2l2-5 3 10 3-14 3 18 3-9 2 4h2" />,
+    disc: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></>,
     plus: <><path d="M12 5v14M5 12h14" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.5 2.6-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.9h-3l-.3-1.9a8 8 0 0 1-1.7-1l-1.7.7-1.5-2.6 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.5-2.6 1.7.7a8 8 0 0 1 1.7-1l.3-1.9h3l.3 1.9a8 8 0 0 1 1.7 1l1.7-.7 1.5 2.6-1.4 1.1a7 7 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)" /></>,
-    spark: <><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2z" /><path d="m19 15 1.1 2.1L22 18l-1.9.9L19 21l-1-2.1-2-.9 2-.9z" /></>,
-    upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v4h16v-4" /></>,
+    headphones: <><path d="M3 13v-1a9 9 0 0 1 18 0v1" /><rect x="3" y="12" width="4" height="7" rx="2" /><rect x="17" y="12" width="4" height="7" rx="2" /></>,
+    panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
+    more: <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
+    music: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
+    check: <path d="m5 12 4 4L19 6" />,
     volume: <><path d="M4 10v4h4l5 4V6l-5 4z" /><path d="M17 9a5 5 0 0 1 0 6M19 6a9 9 0 0 1 0 12" /></>,
   }
-  return <svg {...shared}>{paths[name]}</svg>
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+}
+function timeLabel(value: number) {
+  if (!Number.isFinite(value) || value < 0) return '00:00'
+  return Math.floor(value / 60).toString().padStart(2, '0') + ':' + Math.floor(value % 60).toString().padStart(2, '0')
 }
 
-function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds < 0) return '00:00'
-  return Math.floor(seconds / 60).toString().padStart(2, '0') + ':' + Math.floor(seconds % 60).toString().padStart(2, '0')
+function SignalCanvas({ analyser, mode }: { analyser: AnalyserNode | null; mode: 'spectrum' | 'waveform' }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+    if (!canvas || !context) return
+    let animation = 0
+    const draw = () => {
+      const width = canvas.clientWidth
+      const height = canvas.clientHeight
+      if (!width || !height) { animation = requestAnimationFrame(draw); return }
+      const ratio = Math.min(window.devicePixelRatio || 1, 2)
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+        canvas.width = Math.round(width * ratio)
+        canvas.height = Math.round(height * ratio)
+      }
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+      context.clearRect(0, 0, width, height)
+      const bins = analyser ? new Uint8Array(analyser.frequencyBinCount) : new Uint8Array(128)
+      if (analyser) {
+        if (mode === 'spectrum') analyser.getByteFrequencyData(bins)
+        else analyser.getByteTimeDomainData(bins)
+      }
+      if (!analyser) {
+        context.strokeStyle = '#46515f'
+        context.lineWidth = 1
+        context.beginPath()
+        context.moveTo(0, height / 2)
+        context.lineTo(width, height / 2)
+        context.stroke()
+      } else if (mode === 'spectrum') {
+        const count = 76
+        const gap = 3
+        const barWidth = Math.max(1, (width - gap * (count - 1)) / count)
+        for (let i = 0; i < count; i++) {
+          const binIndex = Math.min(bins.length - 1, Math.floor(Math.pow(i / count, 1.8) * bins.length))
+          const value = bins[binIndex] / 255
+          const barHeight = Math.max(2, value * height)
+          context.fillStyle = i < 22 ? '#b5f36b' : i < 49 ? '#75d7a8' : '#b7a1ff'
+          context.globalAlpha = 0.9
+          context.fillRect(i * (barWidth + gap), height - barHeight, barWidth, barHeight)
+        }
+        context.globalAlpha = 1
+      } else {
+        context.strokeStyle = '#b5f36b'
+        context.lineWidth = 1.6
+        context.beginPath()
+        for (let i = 0; i < bins.length; i++) {
+          const x = (i / Math.max(1, bins.length - 1)) * width
+          const y = (bins[i] / 255) * height
+          if (i === 0) context.moveTo(x, y); else context.lineTo(x, y)
+        }
+        context.stroke()
+      }
+      animation = requestAnimationFrame(draw)
+    }
+    animation = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(animation)
+  }, [analyser, mode])
+  return <canvas ref={canvasRef} className="analysis-canvas" aria-label={mode === 'spectrum' ? 'Live audio frequency spectrum' : 'Live audio waveform'} />
 }
-
-function makeWaveform(count: number, seed: number) {
-  return Array.from({ length: count }, (_, index) => {
-    const envelope = 0.28 + 0.72 * Math.abs(Math.sin(index * 0.095 + seed))
-    const detail = 0.25 + 0.75 * Math.abs(Math.sin(index * 0.41 + seed * 2.2))
-    return Math.max(5, Math.round(envelope * detail * 100))
-  })
-}
-
-const waveformA = makeWaveform(112, 1.4)
-const waveformB = makeWaveform(112, 2.8)
-const spectrumBars = Array.from({ length: 54 }, (_, index) => {
-  const base = Math.abs(Math.sin(index * 0.36) * Math.cos(index * 0.13))
-  return Math.round(10 + base * 72 + (index % 7) * 2)
-})
-
-function Deck({ deck, accent }: { deck: 'A' | 'B'; accent: 'lime' | 'violet' }) {
-  const inputRef = useRef<HTMLInputElement>(null)
+function Deck({ deck, accent, onAudioStart, onFileLoaded }: { deck: DeckId; accent: 'lime' | 'violet'; onAudioStart: (audio: HTMLAudioElement, deck: DeckId) => Promise<void>; onFileLoaded: (file: File) => Promise<number[]> }) {
+  const fileRef = useRef<HTMLInputElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [fileName, setFileName] = useState('')
-  const [audioUrl, setAudioUrl] = useState('')
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [url, setUrl] = useState('')
+  const [playing, setPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [loadError, setLoadError] = useState('')
-
-  useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-    }
-  }, [audioUrl])
-
-  async function togglePlayback() {
-    const audio = audioRef.current
-    if (!audio || !audioUrl) {
-      inputRef.current?.click()
-      return
-    }
-    if (audio.paused) {
-      try {
-        await audio.play()
-        setIsPlaying(true)
-      } catch {
-        setLoadError('Playback was blocked. Try pressing play again.')
-      }
-    } else {
-      audio.pause()
-      setIsPlaying(false)
-    }
-  }
-
-  function loadFile(file?: File) {
+  const [current, setCurrent] = useState(0)
+  const [error, setError] = useState('')
+  const [bars, setBars] = useState<number[]>([])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  async function loadFile(file?: File) {
     if (!file) return
-    if (!file.type.startsWith('audio/')) {
-      setLoadError('Choose an audio file to load this deck.')
-      return
-    }
-    if (audioUrl) URL.revokeObjectURL(audioUrl)
-    setAudioUrl(URL.createObjectURL(file))
-    setFileName(file.name)
-    setCurrentTime(0)
-    setDuration(0)
-    setIsPlaying(false)
-    setLoadError('')
+    if (!file.type.startsWith('audio/')) { setError('Choose an audio file.'); return }
+    try {
+      const peaks = await onFileLoaded(file)
+      if (url) URL.revokeObjectURL(url)
+      setUrl(URL.createObjectURL(file)); setFileName(file.name); setCurrent(0); setDuration(0); setPlaying(false); setBars(peaks); setError('')
+    } catch { setError('This file could not be decoded. Try a WAV, MP3, OGG or M4A file.') }
   }
-
-  return (
-    <section className={'deck-card deck-' + accent} aria-label={'Deck ' + deck}>
-      <audio
-        ref={audioRef}
-        src={audioUrl || undefined}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onEnded={() => setIsPlaying(false)}
-        onError={() => { if (audioUrl) setLoadError('This file could not be played by your browser.') }}
-      />
-      <input ref={inputRef} className="visually-hidden" type="file" accept="audio/*" onChange={(event) => loadFile(event.target.files?.[0])} aria-label={'Choose audio for deck ' + deck} />
-      <div className="deck-topline">
-        <div className="deck-identity"><span className="deck-letter">{deck}</span><div><p className="eyebrow">PLAYER {deck === 'A' ? '01' : '02'}</p><h3>Deck {deck}</h3></div></div>
-        <span className="deck-status"><span />{isPlaying ? 'PLAYING' : audioUrl ? 'LOADED' : 'STANDBY'}</span>
-      </div>
-      <button className="track-select" type="button" onClick={() => inputRef.current?.click()}>
-        <span className="track-art"><Icon name={fileName ? 'audio' : 'disc'} size={22} /></span>
-        <span className="track-copy"><strong>{fileName || 'Load a track'}</strong><small>{fileName ? 'Local audio · stays on this device' : 'Choose an audio file to begin'}</small></span>
-        <Icon name={fileName ? 'more' : 'plus'} size={19} />
-      </button>
-      <div className="deck-waveform" aria-label="Illustrative waveform preview">
-        <div className="waveform-grid" />
-        {(deck === 'A' ? waveformA : waveformB).map((height, index) => (
-          <span key={deck + '-' + index} className={'wave-bar' + (duration && index / 112 <= currentTime / duration ? ' is-played' : '')} style={{ height: height + '%' }} />
-        ))}
-        <span className="playhead" style={{ left: (duration ? (currentTime / duration) * 100 : 0) + '%' }} />
-      </div>
-      <div className="deck-time"><span>{formatTime(currentTime)}</span><span>{duration ? formatTime(duration) : '00:00'}</span></div>
-      <input className="seek-slider" type="range" min={0} max={duration || 1} step={0.1} value={Math.min(currentTime, duration || 1)} onChange={(event) => {
-        const nextTime = Number(event.target.value)
-        if (audioRef.current) audioRef.current.currentTime = nextTime
-        setCurrentTime(nextTime)
-      }} disabled={!audioUrl || !duration} aria-label={'Seek deck ' + deck} />
-      <div className="deck-controls">
-        <button className="icon-button" type="button" aria-label={'Return deck ' + deck + ' to start'} title="Return to start" onClick={() => {
-          if (audioRef.current) audioRef.current.currentTime = 0
-          setCurrentTime(0)
-        }}><Icon name="circle" size={18} /></button>
-        <button className="deck-play" type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause deck ' + deck : 'Play deck ' + deck}><Icon name={isPlaying ? 'pause' : 'play'} size={20} /></button>
-        <button className="icon-button" type="button" aria-label={'Load audio for deck ' + deck} title="Load audio" onClick={() => inputRef.current?.click()}><Icon name="upload" size={18} /></button>
-      </div>
-      {loadError && <p className="inline-error" role="status">{loadError}</p>}
-    </section>
-  )
+  async function togglePlay() {
+    const audio = audioRef.current
+    if (!audio || !url) { fileRef.current?.click(); return }
+    if (audio.paused) {
+      try { await onAudioStart(audio, deck); await audio.play(); setPlaying(true); setError('') }
+      catch { setError('Playback could not start. Try again.') }
+    } else { audio.pause(); setPlaying(false) }
+  }
+  return <section className={'deck-strip deck-' + accent} aria-label={'Deck ' + deck}>
+    <audio ref={audioRef} src={url || undefined} onLoadedMetadata={e => setDuration(e.currentTarget.duration)} onTimeUpdate={e => setCurrent(e.currentTarget.currentTime)} onEnded={() => setPlaying(false)} onError={() => { if (url) setError('This audio file could not be played.') }} />
+    <input ref={fileRef} className="visually-hidden" type="file" accept="audio/*" aria-label={'Choose audio for deck ' + deck} onChange={e => loadFile(e.target.files?.[0])} />
+    <div className="deck-heading"><span className="deck-chip">{deck}</span><div className="deck-track-info"><strong title={fileName}>{fileName || 'Empty deck'}</strong><span>{playing ? 'PLAYING NOW' : fileName ? 'LOCAL AUDIO' : 'LOAD A TRACK TO START'}</span></div><button className="mini-icon" type="button" title="Load track" aria-label={'Load track for deck ' + deck} onClick={() => fileRef.current?.click()}><Icon name="folder" /></button></div>
+    <div className="deck-waveform" aria-label="Decoded audio waveform preview"><div className="wave-grid" />{bars.length ? bars.map((height, i) => <span key={i} className={'wave-bar' + (duration && i / bars.length <= current / duration ? ' played' : '')} style={{ height: height + '%' }} />) : <span className="wave-empty">LOAD AUDIO TO VIEW WAVEFORM</span>}<span className="wave-cursor" style={{ left: (duration ? current / duration * 100 : 0) + '%' }} /></div>
+    <div className="deck-time"><span>{timeLabel(current)}</span><span>{duration ? timeLabel(duration) : '00:00'}</span></div>
+    <input className="seek-slider" type="range" min={0} max={duration || 1} step={.1} value={Math.min(current, duration || 1)} disabled={!url || !duration} aria-label={'Seek deck ' + deck} onChange={e => { const t = Number(e.target.value); if (audioRef.current) audioRef.current.currentTime = t; setCurrent(t) }} />
+    <div className="deck-actions"><button className="mini-icon" type="button" aria-label={'Return deck ' + deck + ' to start'} onClick={() => { if (audioRef.current) audioRef.current.currentTime = 0; setCurrent(0) }}><Icon name="back" /></button><button className="deck-play" type="button" aria-label={playing ? 'Pause deck ' + deck : 'Play deck ' + deck} onClick={togglePlay}><Icon name={playing ? 'pause' : 'play'} size={19} /></button><button className="mini-icon" type="button" aria-label={'Load audio for deck ' + deck} onClick={() => fileRef.current?.click()}><Icon name="upload" /></button></div>
+    {error && <p className="inline-error" role="status">{error}</p>}
+  </section>
 }
 
 function App() {
-  const [masterLevel, setMasterLevel] = useState(78)
+  const [master, setMaster] = useState(78)
   const [crossfade, setCrossfade] = useState(50)
-  const [activeSource, setActiveSource] = useState<'files' | 'mic'>('files')
-  const [showNotice, setShowNotice] = useState(true)
-
-  return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#workspace" aria-label="Sound Visualizer home"><span className="brand-mark"><Icon name="audio" size={22} /></span><span className="brand-name">SOUND<span>VISUALIZER</span></span></a>
-        <div className="sidebar-label">WORKSPACE</div>
-        <nav className="side-nav" aria-label="Workspace navigation">
-          <a className="nav-item active" href="#workspace"><Icon name="layers" size={18} />Studio <span className="nav-shortcut">01</span></a>
-          <a className="nav-item" href="#analysis"><Icon name="activity" size={18} />Analysis <span className="soon-tag">SOON</span></a>
-          <a className="nav-item" href="#library"><Icon name="folder" size={18} />Library <span className="soon-tag">SOON</span></a>
-        </nav>
-        <div className="sidebar-label source-label">INPUT SOURCES</div>
-        <div className="source-switch" role="group" aria-label="Audio input source">
-          <button type="button" className={activeSource === 'files' ? 'source-option selected' : 'source-option'} onClick={() => setActiveSource('files')}><Icon name="folder" size={16} /> Files</button>
-          <button type="button" className={activeSource === 'mic' ? 'source-option selected' : 'source-option'} onClick={() => setActiveSource('mic')}><Icon name="mic" size={16} /> Microphone</button>
-        </div>
-        <div className="source-note">{activeSource === 'files' ? 'Load local audio into either deck. Files are not uploaded.' : 'Microphone capture will be added with the audio engine.'}</div>
-        <div className="sidebar-bottom">
-          <div className="local-status"><span className="status-dot" /><div><strong>LOCAL SESSION</strong><small>No account required</small></div></div>
-          <button className="settings-button" type="button" onClick={() => setShowNotice((visible) => !visible)}><Icon name="settings" size={17} /> Project notes <Icon name="chevron" size={15} /></button>
-        </div>
-      </aside>
-
-      <section className="workspace" id="workspace">
-        <header className="topbar">
-          <div className="breadcrumbs"><span>WORKSPACE</span><Icon name="chevron" size={13} /><strong>Studio</strong></div>
-          <div className="topbar-right"><span className="prototype-pill"><span />FOUNDATION BUILD</span><button className="icon-button top-settings" aria-label="Project status" title="Project status" type="button" onClick={() => setShowNotice((visible) => !visible)}><Icon name="settings" size={18} /></button></div>
-        </header>
-        <div className="page-content">
-          <section className="welcome-row">
-            <div><p className="eyebrow welcome-eyebrow">AUDIO WORKSTATION / 001</p><h1>Make sound <span>visible.</span></h1><p className="welcome-copy">A workspace for listening, exploring, and understanding audio.</p></div>
-            <div className="session-chip"><span className="session-pulse" /><div><small>SESSION</small><strong>Untitled session</strong></div><button type="button" aria-label="Session options" onClick={() => setShowNotice((visible) => !visible)}><Icon name="more" size={18} /></button></div>
-          </section>
-          {showNotice && <div className="foundation-note"><Icon name="spark" size={17} /><p><strong>Foundation build</strong><span>Local file playback is working. Live analysis, EQ processing, and microphone routing are the next milestones.</span></p><button type="button" aria-label="Dismiss project note" onClick={() => setShowNotice(false)}>×</button></div>}
-
-          <section className="decks-section" aria-label="Audio decks">
-            <div className="section-heading"><div><span className="section-index">01</span><h2>Players</h2><span className="section-description">Two-deck listening setup</span></div><span className="tiny-label"><span className="tiny-dot" /> LOCAL AUDIO</span></div>
-            <div className="decks-grid"><Deck deck="A" accent="lime" /><Deck deck="B" accent="violet" /></div>
-          </section>
-
-          <section className="mixer-section" aria-label="Mixer controls">
-            <div className="section-heading"><div><span className="section-index">02</span><h2>Master mixer</h2><span className="section-description">Control surface preview</span></div><span className="prototype-label">ROUTING NOT CONNECTED</span></div>
-            <div className="mixer-panel">
-              <div className="mixer-channel">
-                <div className="channel-title"><span className="channel-marker marker-a" />DECK A <small>CHANNEL 01</small></div>
-                <div className="eq-row">
-                  <label><span>HIGH</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck A high EQ preview" /><small>0 dB</small></label>
-                  <label><span>MID</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck A mid EQ preview" /><small>0 dB</small></label>
-                  <label><span>LOW</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck A low EQ preview" /><small>0 dB</small></label>
-                </div>
-                <div className="channel-foot"><span>GAIN</span><div className="gain-track"><span style={{ width: '68%' }} /></div><span>0.0</span></div>
-              </div>
-              <div className="mixer-divider"><span>VS</span></div>
-              <div className="mixer-channel">
-                <div className="channel-title"><span className="channel-marker marker-b" />DECK B <small>CHANNEL 02</small></div>
-                <div className="eq-row">
-                  <label><span>HIGH</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck B high EQ preview" /><small>0 dB</small></label>
-                  <label><span>MID</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck B mid EQ preview" /><small>0 dB</small></label>
-                  <label><span>LOW</span><input type="range" min="-12" max="12" defaultValue="0" aria-label="Deck B low EQ preview" /><small>0 dB</small></label>
-                </div>
-                <div className="channel-foot"><span>GAIN</span><div className="gain-track"><span style={{ width: '68%' }} /></div><span>0.0</span></div>
-              </div>
-              <div className="master-controls">
-                <div className="master-heading"><Icon name="volume" size={17} /><span>MASTER</span></div>
-                <div className="master-value">{masterLevel}<small>%</small></div>
-                <input className="master-slider" type="range" min="0" max="100" value={masterLevel} onChange={(event) => setMasterLevel(Number(event.target.value))} aria-label="Master level preview" />
-                <div className="master-scale"><span>0</span><span>100</span></div>
-                <div className="master-meter"><span style={{ height: masterLevel + '%' }} /><span style={{ height: Math.max(6, masterLevel - 12) + '%' }} /></div>
-              </div>
-              <div className="crossfader">
-                <div className="crossfader-label"><span>CROSSFADER</span><small><b>A</b> MIX <b>B</b></small></div>
-                <input type="range" min="0" max="100" value={crossfade} onChange={(event) => setCrossfade(Number(event.target.value))} aria-label="Crossfader preview" />
-                <div className="crossfader-scale"><span>A</span><span>CENTER</span><span>B</span></div>
-              </div>
-            </div>
-          </section>
-
-          <section className="visual-section" id="analysis" aria-label="Visualization preview">
-            <div className="section-heading"><div><span className="section-index">03</span><h2>Signal monitor</h2><span className="section-description">Visualization canvas preview</span></div><span className="prototype-label">DEMO DATA</span></div>
-            <div className="visual-panel">
-              <div className="visual-header"><div><Icon name="activity" size={17} /><span>FREQUENCY SPECTRUM</span></div><span>20 Hz — 20 kHz</span></div>
-              <div className="spectrum-chart" aria-label="Decorative spectrum preview; not connected to audio yet">
-                <div className="spectrum-grid"><span>0 dB</span><span>-12 dB</span><span>-24 dB</span><span>-36 dB</span><span>-48 dB</span></div>
-                <div className="spectrum-bars">{spectrumBars.map((height, index) => <span key={index} className={'spectrum-bar ' + (index < 18 ? 'low' : index < 37 ? 'mid' : 'high')} style={{ height: height + '%' }} />)}</div>
-                <div className="spectrum-labels"><span>20 Hz</span><span>60 Hz</span><span>250 Hz</span><span>1 kHz</span><span>5 kHz</span><span>20 kHz</span></div>
-              </div>
-              <div className="visual-footer"><span><i className="legend-low" />LOW</span><span><i className="legend-mid" />MID</span><span><i className="legend-high" />HIGH</span><p>Illustrative data · Audio analysis comes next</p></div>
-            </div>
-          </section>
-          <footer className="app-footer"><span>SOUND VISUALIZER <b>·</b> FOUNDATION 0.1</span><span>BUILT FOR CURIOSITY <Icon name="spark" size={13} /></span></footer>
-        </div>
+  const [tab, setTab] = useState<'files' | 'input'>('files')
+  const [browserOpen, setBrowserOpen] = useState(true)
+  const [visualMode, setVisualMode] = useState<'spectrum' | 'waveform'>('spectrum')
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const [projectName, setProjectName] = useState('Untitled session')
+  const [sessionStatus, setSessionStatus] = useState('LOCAL ONLY')
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
+  const [eq, setEq] = useState<Record<DeckId, Record<EqBand, number>>>({ A: { low: 0, mid: 0, high: 0 }, B: { low: 0, mid: 0, high: 0 } })
+  const [deckGain, setDeckGain] = useState<Record<DeckId, number>>({ A: 0, B: 0 })
+  const [micActive, setMicActive] = useState(false)
+  const [micError, setMicError] = useState('')
+  const engineRef = useRef<AudioEngine | null>(null)
+  const getEngine = () => engineRef.current ?? (engineRef.current = new AudioEngine())
+  useEffect(() => () => { void engineRef.current?.close() }, [])
+  useEffect(() => {
+    let active = true
+    const applySession = (saved: SessionSnapshot) => {
+      if (!active) return
+      setProjectName(saved.name)
+      setMaster(saved.master)
+      setCrossfade(saved.crossfade)
+      setVisualMode(saved.visualMode)
+      setEq(saved.eq)
+      setDeckGain(saved.deckGain)
+    }
+    async function restoreSession() {
+      try {
+        const response = await fetch('/api/session')
+        if (!response.ok) throw new Error('API unavailable')
+        const data = await response.json() as { session: SessionSnapshot | null }
+        if (data.session) applySession(data.session)
+        setSessionStatus('API CONNECTED')
+      } catch {
+        try {
+          const saved = localStorage.getItem('sound-visualizer-session')
+          if (saved) applySession(JSON.parse(saved) as SessionSnapshot)
+        } catch { /* ignore invalid local session data */ }
+        if (active) setSessionStatus('LOCAL ONLY')
+      }
+    }
+    void restoreSession()
+    return () => { active = false }
+  }, [])
+  async function saveSession() {
+    const session: SessionSnapshot = { name: projectName.trim() || 'Untitled session', master, crossfade, visualMode, eq, deckGain }
+    localStorage.setItem('sound-visualizer-session', JSON.stringify(session))
+    setSessionStatus('SAVING...')
+    try {
+      const response = await fetch('/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(session) })
+      if (!response.ok) throw new Error('API unavailable')
+      setSessionStatus('SAVED TO API')
+    } catch {
+      setSessionStatus('SAVED LOCALLY')
+    }
+  }
+  async function connectAudio(audio: HTMLAudioElement, deck: DeckId) {
+    const engine = getEngine()
+    const node = await engine.connectDeck(deck, audio)
+    engine.setMaster(master)
+    engine.setCrossfader(crossfade)
+    ;(['low', 'mid', 'high'] as EqBand[]).forEach(band => engine.setEQ(deck, band, eq[deck][band]))
+    engine.setDeckGain(deck, deckGain[deck])
+    setAnalyser(node)
+  }
+  async function decodeFile(file: File) { return getEngine().decodeWaveform(file) }
+  function changeEq(deck: DeckId, band: EqBand, value: number) {
+    setEq(current => ({ ...current, [deck]: { ...current[deck], [band]: value } }))
+    engineRef.current?.setEQ(deck, band, value)
+  }
+  function changeDeckGain(deck: DeckId, value: number) {
+    setDeckGain(current => ({ ...current, [deck]: value }))
+    engineRef.current?.setDeckGain(deck, value)
+  }
+  async function toggleMicrophone() {
+    try {
+      if (micActive) { engineRef.current?.disableMicrophone(); setAnalyser(engineRef.current?.getAnalyser() ?? null); setMicActive(false); setMicError(''); return }
+      const engine = getEngine()
+      engine.setMaster(master)
+      await engine.enableMicrophone()
+      setAnalyser(engine.getAnalyser())
+      setMicActive(true)
+      setMicError('')
+    } catch (error) { setMicError(error instanceof Error ? error.message : 'Microphone permission was not granted.') }
+  }
+  return <main className="studio-shell">
+    <header className="studio-topbar">
+      <a className="brand" href="#studio" aria-label="Sound Visualizer home"><span className="brand-mark"><Icon name="audio" size={20} /></span><span className="brand-wordmark">SOUND<span>VISUALIZER</span></span></a>
+      <div className="project-name"><span className="online-dot" /><input aria-label="Project name" value={projectName} onChange={e => setProjectName(e.target.value)} /><span className="project-state">LOCAL PROJECT</span></div>
+      <div className="topbar-tools"><button className="save-session-button" type="button" onClick={() => void saveSession()} title="Save session settings">SAVE</button><button className={'toolbar-button' + (browserOpen ? ' active' : '')} type="button" onClick={() => setBrowserOpen(v => !v)} title="Toggle browser" aria-label="Toggle browser"><Icon name="panel" /></button><button className="toolbar-button" type="button" onClick={() => setNoticeOpen(v => !v)} title="Workspace notes" aria-label="Workspace notes"><Icon name="settings" /></button><span className="version-pill">{sessionStatus}</span></div>
+    </header>
+    <div className="transport-bar"><div className="transport-group"><button className="transport-button" type="button" title="Transport position preview" aria-label="Transport position preview"><Icon name="back" /></button><span className="transport-divider" /><span className="transport-time">00:00<span>.00</span></span><span className="transport-divider" /><span className="tempo-readout">120.0 <small>BPM · PREVIEW</small></span></div><div className="transport-status"><span className="status-light" /> READY <span className="transport-divider" /> 44.1 kHz <span className="transport-divider" /> STEREO</div></div>
+    <div className={'studio-body' + (browserOpen ? '' : ' browser-hidden')}>
+      {browserOpen && <aside className="browser-panel"><div className="panel-title"><span>BROWSER</span><button className="mini-icon" type="button" aria-label="Hide browser" onClick={() => setBrowserOpen(false)}><Icon name="panel" /></button></div><div className="browser-tabs"><button type="button" className={tab === 'files' ? 'selected' : ''} onClick={() => setTab('files')}><Icon name="folder" size={14} /> Files</button><button type="button" className={tab === 'input' ? 'selected' : ''} onClick={() => setTab('input')}><Icon name="mic" size={14} /> Input</button></div>{tab === 'files' ? <><div className="browser-section-label">SOURCE</div><div className="browser-item active"><Icon name="folder" /><span>Local audio</span><span className="item-count">2 DECKS</span></div><div className="browser-item"><Icon name="music" /><span>Supported files</span></div><div className="browser-hint">Load audio directly into either deck. Files stay on this device.</div></> : <><div className="browser-section-label">INPUT SOURCE</div><button className={'browser-item mic-source-button' + (micActive ? ' active' : '')} type="button" onClick={() => void toggleMicrophone()}><Icon name="mic" /><span>{micActive ? 'Stop microphone' : 'Start microphone'}</span><span className="coming-soon">{micActive ? 'LIVE' : 'INPUT'}</span></button><div className="browser-hint">Microphone audio is analysed live. Your browser will ask for permission.</div>{micError && <div className="inline-error" role="status">{micError}</div>}</>}<div className="browser-bottom"><span className="storage-icon"><Icon name="check" size={13} /></span><div><strong>LOCAL SESSION</strong><small>No account required</small></div></div></aside>}
+      <section className="work-area" id="studio">
+        <div className="work-heading"><div><div className="breadcrumb">WORKSPACE <Icon name="chevron" size={12} /> <strong>Studio</strong></div><h1>Sound <span>lab.</span></h1></div><div className="work-heading-right"><span className="mode-label"><span /> AUDIO WORKSPACE</span><button className="toolbar-button" type="button" onClick={() => setNoticeOpen(v => !v)} aria-label="Toggle workspace notes"><Icon name="more" /></button></div></div>
+        {noticeOpen && <div className="notice-panel"><Icon name="activity" /><div><strong>Workspace status</strong><span>Local file playback is available. The spectrum, waveform, microphone routing and processing controls are currently illustrative and will be connected in the audio-engine stage.</span></div><button type="button" onClick={() => setNoticeOpen(false)} aria-label="Dismiss note">×</button></div>}
+        <section className="module visualization-module"><div className="module-heading"><div><span className="module-index">01</span><h2>Signal monitor</h2></div><div className="segmented-control"><button type="button" className={visualMode === 'spectrum' ? 'selected' : ''} onClick={() => setVisualMode('spectrum')}>Spectrum</button><button type="button" className={visualMode === 'waveform' ? 'selected' : ''} onClick={() => setVisualMode('waveform')}>Waveform</button></div></div><div className="signal-canvas"><div className="signal-toolbar"><div><span className="live-dot" /> {analyser ? (micActive ? 'LIVE MICROPHONE INPUT' : visualMode === 'spectrum' ? 'LIVE FREQUENCY ANALYSIS' : 'LIVE AMPLITUDE ANALYSIS') : 'WAITING FOR AUDIO'}</div><span>{visualMode === 'spectrum' ? '20 Hz — 20 kHz' : 'TIME DOMAIN'}</span></div><div className={'signal-graph ' + visualMode}><div className="graph-labels">{(visualMode === 'spectrum' ? ['0 dB','-12 dB','-24 dB','-36 dB','-48 dB'] : ['+1.0','+0.5','0.0','-0.5','-1.0']).map(label => <span key={label}>{label}</span>)}</div><div className="graph-lines">{[0,1,2,3,4].map(line => <span key={line} />)}</div><SignalCanvas analyser={analyser} mode={visualMode} /><div className="frequency-labels">{(visualMode === 'spectrum' ? ['20 Hz','60 Hz','250 Hz','1 kHz','5 kHz','20 kHz'] : ['00:00','00:15','00:30','00:45','01:00','01:15']).map(label => <span key={label}>{label}</span>)}</div></div><div className="signal-footer"><div className="legend"><span className="legend-low" />LOW <span className="legend-mid" />MID <span className="legend-high" />HIGH</div><span className="demo-label">{analyser ? 'WEB AUDIO API · LIVE ANALYSIS' : 'LOAD A TRACK OR START MICROPHONE INPUT'}</span></div></div></section>
+        <section className="module decks-module"><div className="module-heading"><div><span className="module-index">02</span><h2>Audio players</h2><span className="module-subtitle">Local playback · two tracks</span></div><span className="module-tag"><Icon name="headphones" size={13} /> MONITOR</span></div><div className="decks-grid"><Deck deck="A" accent="lime" onAudioStart={connectAudio} onFileLoaded={decodeFile} /><Deck deck="B" accent="violet" onAudioStart={connectAudio} onFileLoaded={decodeFile} /></div></section>
+        <section className="module mixer-module"><div className="module-heading"><div><span className="module-index">03</span><h2>Mixer</h2><span className="module-subtitle">Control surface</span></div><span className="module-tag">PROCESSING NOT CONNECTED</span></div><div className="mixer-rack">
+          <div className="mixer-channel"><div className="channel-heading"><span className="channel-dot lime-dot" />CHANNEL A<small>01</small></div><div className="eq-controls">{(['low','mid','high'] as EqBand[]).map(band => <label key={band}><span>{band.toUpperCase()}</span><input type="range" min="-12" max="12" value={eq.A[band]} onChange={e => changeEq('A', band, Number(e.target.value))} aria-label={'Channel A '+band+' EQ'} /><small>{eq.A[band]} dB</small></label>)}</div><div className="gain-row"><span>GAIN</span><input type="range" min="-18" max="6" step="1" value={deckGain.A} onChange={e => changeDeckGain('A', Number(e.target.value))} aria-label="Channel A gain" /><span>{deckGain.A} dB</span></div></div>
+          <div className="mixer-separator"><span>↔</span></div>
+          <div className="mixer-channel"><div className="channel-heading"><span className="channel-dot violet-dot" />CHANNEL B<small>02</small></div><div className="eq-controls">{(['low','mid','high'] as EqBand[]).map(band => <label key={band}><span>{band.toUpperCase()}</span><input type="range" min="-12" max="12" value={eq.B[band]} onChange={e => changeEq('B', band, Number(e.target.value))} aria-label={'Channel B '+band+' EQ'} /><small>{eq.B[band]} dB</small></label>)}</div><div className="gain-row"><span>GAIN</span><input type="range" min="-18" max="6" step="1" value={deckGain.B} onChange={e => changeDeckGain('B', Number(e.target.value))} aria-label="Channel B gain" /><span>{deckGain.B} dB</span></div></div>
+          <div className="master-rack"><div className="master-label"><Icon name="volume" size={14} /> MASTER</div><strong>{master}<small>%</small></strong><input className="master-slider" type="range" min="0" max="100" value={master} onChange={e => { const value = Number(e.target.value); setMaster(value); engineRef.current?.setMaster(value) }} aria-label="Master level preview" /><div className="master-meter"><span style={{height:master+'%'}} /><span style={{height:Math.max(6,master-12)+'%'}} /></div></div>
+          <div className="crossfader-rack"><div><span>CROSSFADER</span><small><b>A</b> — CENTER — <b>B</b></small></div><input type="range" min="0" max="100" value={crossfade} onChange={e => { const value = Number(e.target.value); setCrossfade(value); engineRef.current?.setCrossfader(value) }} aria-label="Crossfader preview" /><div className="crossfader-labels"><span>A</span><span>CENTER</span><span>B</span></div></div>
+        </div></section>
+        <footer className="studio-footer"><span>SOUND VISUALIZER <b>·</b> WORKSPACE FOUNDATION</span><span>MADE FOR EXPLORING SOUND <Icon name="audio" size={12} /></span></footer>
       </section>
-    </main>
-  )
+    </div>
+  </main>
 }
-
 export default App
