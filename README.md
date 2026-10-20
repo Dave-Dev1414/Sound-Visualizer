@@ -1,57 +1,69 @@
-
 # Sound Visualizer
 
-A local-first audio analysis and manipulation workstation built for the web.
+A local-first audio analysis workstation with a compact, FL Studio-inspired workspace. Audio stays in the browser; the optional local API stores only session settings.
 
-## Vision
+## Features
 
-Sound Visualizer aims to combine a professional DJ-style interface with advanced audio analysis, real-time visualization, and sound manipulation.
+- Two independent audio decks with local file loading, play/pause, seek, duration and decoded waveform previews
+- Live frequency spectrum and time-domain waveform using the Web Audio API
+- Three-band EQ per deck (low shelf, mid peaking filter, high shelf)
+- Per-deck gain, master level and equal-power crossfader
+- Microphone input with explicit browser permission and a stop control
+- Save and restore project settings through the local API, with browser local-storage fallback
+- Responsive layout for desktop and smaller screens
 
-Planned capabilities include:
+## Requirements
 
-- Real-time waveform and frequency-spectrum visualization
-- Audio file playback and microphone input
-- Bass, midrange, and treble equalization
-- Pitch analysis and vocal-range exploration
-- Audio effects and signal-processing experiments
-- Advanced visualizations and cross-platform support
+- Node.js 20.19+ (Node 22+ recommended)
+- A modern browser with Web Audio API support
+- Microphone access requires localhost or HTTPS and browser permission
 
-## Technology
+## Run locally
 
-- React
-- TypeScript
-- Vite
-- Web Audio API
-- HTML and CSS
-
-Additional technologies may be introduced as the project develops.
-
-## Development
-
-Install dependencies:
+Install the frontend dependencies once:
 
 ```bash
 npm install
 ```
 
-Start the development server:
+Open **Terminal 1** and start the API:
+
+```bash
+npm run server
+```
+
+The API listens at `http://localhost:8787`. It saves the current session settings to `backend/data/session.json` when you press **Save**. That local data file is ignored by Git.
+
+Open **Terminal 2** and start the frontend:
 
 ```bash
 npm run dev
 ```
 
-Run linting:
+Open the Vite URL shown in the terminal (normally `http://localhost:5173`). Vite proxies `/api` requests to the local API.
 
-```bash
-npm run lint
-```
+The frontend can still run without the API. Session settings are then saved in the browser's local storage instead.
 
-Build for production:
+## Verify
 
 ```bash
 npm run build
+npm run lint
 ```
 
-## Project status
+Check the API separately at `http://localhost:8787/api/health`; it should return JSON with `"status":"ok"`.
 
-Early development. Features will be implemented incrementally as part of a hands-on learning project exploring web development, digital signal processing, mathematics, and graphics programming.
+## Audio privacy and limitations
+
+- Audio files are decoded and played locally in the browser. The backend does **not** upload or store audio files.
+- Microphone audio is processed in-browser and is not sent to the API.
+- Session persistence stores the project name, visualization mode, master/crossfader levels, EQ values and channel gain only.
+- Browser audio decoding depends on the codec support in the browser.
+- This is a real-time analysis and basic processing workstation, not yet a multitrack editor, recorder, pitch shifter or DAW export pipeline.
+
+## Architecture
+
+- **Frontend:** React, TypeScript, Vite
+- **Audio processing:** Web Audio API (`AnalyserNode`, `BiquadFilterNode`, `GainNode`, `MediaStreamAudioSourceNode`)
+- **Backend:** Node.js built-in HTTP server; no extra backend package is required
+- **Session storage:** local JSON file on the backend, with local-storage fallback in the browser
