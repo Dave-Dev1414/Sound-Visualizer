@@ -32,12 +32,80 @@ function timeLabel(value: number) {
   if (!Number.isFinite(value) || value < 0) return '00:00'
   return Math.floor(value / 60).toString().padStart(2, '0') + ':' + Math.floor(value % 60).toString().padStart(2, '0')
 }
+
+function SignalCanvas({ analyser, mode }: { analyser: AnalyserNode | null; mode: 'spectrum' | 'waveform' }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d')
+    if (!canvas || !context) return
+    let frame = 0
+    let animation = 0
+    const draw = () => {
+      const width = canvas.clientWidth
+      const height = canvas.clientHeight
+      if (!width || !height) { animation = requestAnimationFrame(draw); return }
+      const ratio = Math.min(window.devicePixelRatio || 1, 2)
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+        canvas.width = Math.round(width * ratio)
+        canvas.height = Math.round(height * ratio)
+      }
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+      context.clearRect(0, 0, width, height)
+      const bins = analyser ? new Uint8Array(analyser.frequencyBinCount) : new Uint8Array(128)
+      if (analyser) {
+        if (mode === 'spectrum') analyser.getByteFrequencyData(bins)
+        else analyser.getByteTimeDomainData(bins)
+      }
+      if (!analyser) {
+        context.strokeStyle = '#b5f36b'
+        context.globalAlpha = 0.5
+        context.lineWidth = 1.5
+        context.beginPath()
+        for (let x = 0; x < width; x++) {
+          const y = height / 2 + Math.sin(x * 0.035) * Math.sin(x * 0.009) * 8
+          if (x === 0) context.moveTo(x, y); else context.lineTo(x, y)
+        }
+        context.stroke()
+        context.globalAlpha = 1
+      } else if (mode === 'spectrum') {
+        const count = 76
+        const gap = 3
+        const barWidth = Math.max(1, (width - gap * (count - 1)) / count)
+        for (let i = 0; i < count; i++) {
+          const binIndex = Math.min(bins.length - 1, Math.floor(Math.pow(i / count, 1.8) * bins.length))
+          const value = bins[binIndex] / 255
+          const barHeight = Math.max(2, value * height)
+          context.fillStyle = i < 22 ? '#b5f36b' : i < 49 ? '#75d7a8' : '#b7a1ff'
+          context.globalAlpha = 0.9
+          context.fillRect(i * (barWidth + gap), height - barHeight, barWidth, barHeight)
+        }
+        context.globalAlpha = 1
+      } else {
+        context.strokeStyle = '#b5f36b'
+        context.lineWidth = 1.6
+        context.beginPath()
+        for (let i = 0; i < bins.length; i++) {
+          const x = (i / Math.max(1, bins.length - 1)) * width
+          const y = (bins[i] / 255) * height
+          if (i === 0) context.moveTo(x, y); else context.lineTo(x, y)
+        }
+        context.stroke()
+      }
+      frame++
+      animation = requestAnimationFrame(draw)
+    }
+    animation = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(animation)
+  }, [analyser, mode])
+  return <canvas ref={canvasRef} className="analysis-canvas" aria-label={mode === 'spectrum' ? 'Live audio frequency spectrum' : 'Live audio waveform'} />
+}
 function makeBars(count: number, seed: number) {
   return Array.from({ length: count }, (_, i) => Math.max(5, Math.round((.28 + .72 * Math.abs(Math.sin(i * .095 + seed))) * (.25 + .75 * Math.abs(Math.sin(i * .41 + seed * 2.2))) * 100)))
 }
 const demoSpectrum = Array.from({ length: 76 }, (_, i) => Math.round(8 + Math.abs(Math.sin(i * .21) * Math.cos(i * .083)) * 75 + (i % 5) * 2))
 
-function Deck({ deck, accent }: { deck: 'A' | 'B'; accent: 'lime' | 'violet' }) {
+function Deck({ deck, accent, onAudioStart }: { deck: 'A' | 'B'; accent: 'lime' | 'violet'; onAudioStart: (audio: HTMLAudioElement) => Promise<void> }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [fileName, setFileName] = useState('')
@@ -58,7 +126,7 @@ function Deck({ deck, accent }: { deck: 'A' | 'B'; accent: 'lime' | 'violet' }) 
     const audio = audioRef.current
     if (!audio || !url) { fileRef.current?.click(); return }
     if (audio.paused) {
-      try { await audio.play(); setPlaying(true); setError('') }
+      try { await onAudioStart(audio); await audio.play(); setPlaying(true); setError('') }
       catch { setError('Playback could not start. Try again.') }
     } else { audio.pause(); setPlaying(false) }
   }
@@ -82,6 +150,29 @@ function App() {
   const [visualMode, setVisualMode] = useState<'spectrum' | 'waveform'>('spectrum')
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [projectName, setProjectName] = useState('Untitled session')
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const connectedAudioRef = useRef(new WeakSet<HTMLAudioElement>())
+  async function connectAudio(audio: HTMLAudioElement) {
+    const AudioContextClass = window.AudioContext
+    if (!AudioContextClass) throw new Error('Web Audio API is not supported in this browser.')
+    const audioContext = audioContextRef.current ?? new AudioContextClass()
+    audioContextRef.current = audioContext
+    let node = analyser
+    if (!node) {
+      node = audioContext.createAnalyser()
+      node.fftSize = 2048
+      node.smoothingTimeConstant = 0.82
+      node.connect(audioContext.destination)
+      setAnalyser(node)
+    }
+    if (!connectedAudioRef.current.has(audio)) {
+      const source = audioContext.createMediaElementSource(audio)
+      source.connect(node)
+      connectedAudioRef.current.add(audio)
+    }
+    if (audioContext.state === 'suspended') await audioContext.resume()
+  }
   return <main className="studio-shell">
     <header className="studio-topbar">
       <a className="brand" href="#studio" aria-label="Sound Visualizer home"><span className="brand-mark"><Icon name="audio" size={20} /></span><span className="brand-wordmark">SOUND<span>VISUALIZER</span></span></a>
@@ -94,8 +185,8 @@ function App() {
       <section className="work-area" id="studio">
         <div className="work-heading"><div><div className="breadcrumb">WORKSPACE <Icon name="chevron" size={12} /> <strong>Studio</strong></div><h1>Sound <span>lab.</span></h1></div><div className="work-heading-right"><span className="mode-label"><span /> AUDIO WORKSPACE</span><button className="toolbar-button" type="button" onClick={() => setNoticeOpen(v => !v)} aria-label="Toggle workspace notes"><Icon name="more" /></button></div></div>
         {noticeOpen && <div className="notice-panel"><Icon name="activity" /><div><strong>Workspace status</strong><span>Local file playback is available. The spectrum, waveform, microphone routing and processing controls are currently illustrative and will be connected in the audio-engine stage.</span></div><button type="button" onClick={() => setNoticeOpen(false)} aria-label="Dismiss note">×</button></div>}
-        <section className="module visualization-module"><div className="module-heading"><div><span className="module-index">01</span><h2>Signal monitor</h2></div><div className="segmented-control"><button type="button" className={visualMode === 'spectrum' ? 'selected' : ''} onClick={() => setVisualMode('spectrum')}>Spectrum</button><button type="button" className={visualMode === 'waveform' ? 'selected' : ''} onClick={() => setVisualMode('waveform')}>Waveform</button></div></div><div className="signal-canvas"><div className="signal-toolbar"><div><span className="live-dot" /> {visualMode === 'spectrum' ? 'FREQUENCY RESPONSE' : 'AMPLITUDE OVER TIME'}</div><span>{visualMode === 'spectrum' ? '20 Hz — 20 kHz' : 'DEMO WAVEFORM'}</span></div><div className={'signal-graph ' + visualMode}><div className="graph-labels">{(visualMode === 'spectrum' ? ['0 dB','-12 dB','-24 dB','-36 dB','-48 dB'] : ['+1.0','+0.5','0.0','-0.5','-1.0']).map(label => <span key={label}>{label}</span>)}</div><div className="graph-lines">{[0,1,2,3,4].map(line => <span key={line} />)}</div>{visualMode === 'spectrum' ? <div className="spectrum-bars">{demoSpectrum.map((height,i) => <span key={i} className={i < 22 ? 'low' : i < 49 ? 'mid' : 'high'} style={{height:height+'%'}} />)}</div> : <svg className="waveform-demo" viewBox="0 0 1000 180" preserveAspectRatio="none" aria-label="Illustrative waveform"><defs><linearGradient id="waveFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#b5f36b" stopOpacity=".38" /><stop offset="100%" stopColor="#b5f36b" stopOpacity=".02" /></linearGradient></defs><path d={'M0 90 '+Array.from({length:250},(_,i)=>{const x=(i+1)*4;const y=90+Math.sin(i*.22)*Math.sin(i*.071)*(12+Math.abs(Math.sin(i*.033))*62);return 'L'+x+' '+y}).join(' ')+' L1000 90 Z'} fill="url(#waveFill)" /><path d={'M0 90 '+Array.from({length:250},(_,i)=>{const x=(i+1)*4;const y=90+Math.sin(i*.22)*Math.sin(i*.071)*(12+Math.abs(Math.sin(i*.033))*62);return 'L'+x+' '+y}).join(' ')} fill="none" stroke="#b5f36b" strokeWidth="1.6" /></svg>}<div className="frequency-labels">{(visualMode === 'spectrum' ? ['20 Hz','60 Hz','250 Hz','1 kHz','5 kHz','20 kHz'] : ['00:00','00:15','00:30','00:45','01:00','01:15']).map(label => <span key={label}>{label}</span>)}</div></div><div className="signal-footer"><div className="legend"><span className="legend-low" />LOW <span className="legend-mid" />MID <span className="legend-high" />HIGH</div><span className="demo-label">ILLUSTRATIVE DATA · LIVE ANALYSIS NEXT</span></div></div></section>
-        <section className="module decks-module"><div className="module-heading"><div><span className="module-index">02</span><h2>Audio players</h2><span className="module-subtitle">Local playback · two tracks</span></div><span className="module-tag"><Icon name="headphones" size={13} /> MONITOR</span></div><div className="decks-grid"><Deck deck="A" accent="lime" /><Deck deck="B" accent="violet" /></div></section>
+        <section className="module visualization-module"><div className="module-heading"><div><span className="module-index">01</span><h2>Signal monitor</h2></div><div className="segmented-control"><button type="button" className={visualMode === 'spectrum' ? 'selected' : ''} onClick={() => setVisualMode('spectrum')}>Spectrum</button><button type="button" className={visualMode === 'waveform' ? 'selected' : ''} onClick={() => setVisualMode('waveform')}>Waveform</button></div></div><div className="signal-canvas"><div className="signal-toolbar"><div><span className="live-dot" /> {analyser ? (visualMode === 'spectrum' ? 'LIVE FREQUENCY ANALYSIS' : 'LIVE AMPLITUDE ANALYSIS') : 'WAITING FOR AUDIO'}</div><span>{visualMode === 'spectrum' ? '20 Hz — 20 kHz' : 'TIME DOMAIN'}</span></div><div className={'signal-graph ' + visualMode}><div className="graph-labels">{(visualMode === 'spectrum' ? ['0 dB','-12 dB','-24 dB','-36 dB','-48 dB'] : ['+1.0','+0.5','0.0','-0.5','-1.0']).map(label => <span key={label}>{label}</span>)}</div><div className="graph-lines">{[0,1,2,3,4].map(line => <span key={line} />)}</div><SignalCanvas analyser={analyser} mode={visualMode} /><div className="frequency-labels">{(visualMode === 'spectrum' ? ['20 Hz','60 Hz','250 Hz','1 kHz','5 kHz','20 kHz'] : ['00:00','00:15','00:30','00:45','01:00','01:15']).map(label => <span key={label}>{label}</span>)}</div></div><div className="signal-footer"><div className="legend"><span className="legend-low" />LOW <span className="legend-mid" />MID <span className="legend-high" />HIGH</div><span className="demo-label">{analyser ? 'WEB AUDIO API · LIVE ANALYSIS' : 'LOAD AND PLAY AUDIO TO BEGIN ANALYSIS'}</span></div></div></section>
+        <section className="module decks-module"><div className="module-heading"><div><span className="module-index">02</span><h2>Audio players</h2><span className="module-subtitle">Local playback · two tracks</span></div><span className="module-tag"><Icon name="headphones" size={13} /> MONITOR</span></div><div className="decks-grid"><Deck deck="A" accent="lime" onAudioStart={connectAudio} /><Deck deck="B" accent="violet" onAudioStart={connectAudio} /></div></section>
         <section className="module mixer-module"><div className="module-heading"><div><span className="module-index">03</span><h2>Mixer</h2><span className="module-subtitle">Control surface</span></div><span className="module-tag">PROCESSING NOT CONNECTED</span></div><div className="mixer-rack">
           <div className="mixer-channel"><div className="channel-heading"><span className="channel-dot lime-dot" />CHANNEL A<small>01</small></div><div className="eq-controls">{['LOW','MID','HIGH'].map(label => <label key={label}><span>{label}</span><input type="range" min="-12" max="12" defaultValue="0" aria-label={'Channel A '+label+' EQ preview'} /><small>0 dB</small></label>)}</div><div className="gain-row"><span>GAIN</span><div className="gain-track"><span style={{width:'68%'}} /></div><span>0.0</span></div></div>
           <div className="mixer-separator"><span>↔</span></div>
