@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 import { AudioEngine, type DeckId, type EqBand } from './audio/AudioEngine'
 
+type SessionSnapshot = { name: string; master: number; crossfade: number; visualMode: 'spectrum' | 'waveform'; eq: Record<DeckId, Record<EqBand, number>>; deckGain: Record<DeckId, number> }
 type IconName = 'audio' | 'folder' | 'mic' | 'play' | 'pause' | 'back' | 'forward' | 'upload' | 'settings' | 'chevron' | 'activity' | 'sliders' | 'wave' | 'disc' | 'plus' | 'headphones' | 'panel' | 'more' | 'music' | 'check' | 'volume'
 function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -143,6 +144,7 @@ function App() {
   const [visualMode, setVisualMode] = useState<'spectrum' | 'waveform'>('spectrum')
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [projectName, setProjectName] = useState('Untitled session')
+  const [sessionStatus, setSessionStatus] = useState('LOCAL ONLY')
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
   const [eq, setEq] = useState<Record<DeckId, Record<EqBand, number>>>({ A: { low: 0, mid: 0, high: 0 }, B: { low: 0, mid: 0, high: 0 } })
   const [deckGain, setDeckGain] = useState<Record<DeckId, number>>({ A: 0, B: 0 })
@@ -151,6 +153,47 @@ function App() {
   const engineRef = useRef<AudioEngine | null>(null)
   const getEngine = () => engineRef.current ?? (engineRef.current = new AudioEngine())
   useEffect(() => () => { void engineRef.current?.close() }, [])
+  useEffect(() => {
+    let active = true
+    const applySession = (saved: SessionSnapshot) => {
+      if (!active) return
+      setProjectName(saved.name)
+      setMaster(saved.master)
+      setCrossfade(saved.crossfade)
+      setVisualMode(saved.visualMode)
+      setEq(saved.eq)
+      setDeckGain(saved.deckGain)
+    }
+    async function restoreSession() {
+      try {
+        const response = await fetch('/api/session')
+        if (!response.ok) throw new Error('API unavailable')
+        const data = await response.json() as { session: SessionSnapshot | null }
+        if (data.session) applySession(data.session)
+        setSessionStatus('API CONNECTED')
+      } catch {
+        try {
+          const saved = localStorage.getItem('sound-visualizer-session')
+          if (saved) applySession(JSON.parse(saved) as SessionSnapshot)
+        } catch { /* ignore invalid local session data */ }
+        if (active) setSessionStatus('LOCAL ONLY')
+      }
+    }
+    void restoreSession()
+    return () => { active = false }
+  }, [])
+  async function saveSession() {
+    const session: SessionSnapshot = { name: projectName.trim() || 'Untitled session', master, crossfade, visualMode, eq, deckGain }
+    localStorage.setItem('sound-visualizer-session', JSON.stringify(session))
+    setSessionStatus('SAVING...')
+    try {
+      const response = await fetch('/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(session) })
+      if (!response.ok) throw new Error('API unavailable')
+      setSessionStatus('SAVED TO API')
+    } catch {
+      setSessionStatus('SAVED LOCALLY')
+    }
+  }
   async function connectAudio(audio: HTMLAudioElement, deck: DeckId) {
     const engine = getEngine()
     const node = await engine.connectDeck(deck, audio)
@@ -183,7 +226,7 @@ function App() {
     <header className="studio-topbar">
       <a className="brand" href="#studio" aria-label="Sound Visualizer home"><span className="brand-mark"><Icon name="audio" size={20} /></span><span className="brand-wordmark">SOUND<span>VISUALIZER</span></span></a>
       <div className="project-name"><span className="online-dot" /><input aria-label="Project name" value={projectName} onChange={e => setProjectName(e.target.value)} /><span className="project-state">LOCAL PROJECT</span></div>
-      <div className="topbar-tools"><button className={'toolbar-button' + (browserOpen ? ' active' : '')} type="button" onClick={() => setBrowserOpen(v => !v)} title="Toggle browser" aria-label="Toggle browser"><Icon name="panel" /></button><button className="toolbar-button" type="button" onClick={() => setNoticeOpen(v => !v)} title="Workspace notes" aria-label="Workspace notes"><Icon name="settings" /></button><span className="version-pill">BETA 0.1</span></div>
+      <div className="topbar-tools"><button className="save-session-button" type="button" onClick={() => void saveSession()} title="Save session settings">SAVE</button><button className={'toolbar-button' + (browserOpen ? ' active' : '')} type="button" onClick={() => setBrowserOpen(v => !v)} title="Toggle browser" aria-label="Toggle browser"><Icon name="panel" /></button><button className="toolbar-button" type="button" onClick={() => setNoticeOpen(v => !v)} title="Workspace notes" aria-label="Workspace notes"><Icon name="settings" /></button><span className="version-pill">{sessionStatus}</span></div>
     </header>
     <div className="transport-bar"><div className="transport-group"><button className="transport-button" type="button" title="Transport position preview" aria-label="Transport position preview"><Icon name="back" /></button><span className="transport-divider" /><span className="transport-time">00:00<span>.00</span></span><span className="transport-divider" /><span className="tempo-readout">120.0 <small>BPM · PREVIEW</small></span></div><div className="transport-status"><span className="status-light" /> READY <span className="transport-divider" /> 44.1 kHz <span className="transport-divider" /> STEREO</div></div>
     <div className={'studio-body' + (browserOpen ? '' : ' browser-hidden')}>
