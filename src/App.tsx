@@ -39,7 +39,6 @@ function SignalCanvas({ analyser, mode }: { analyser: AnalyserNode | null; mode:
     const canvas = canvasRef.current
     const context = canvas?.getContext('2d')
     if (!canvas || !context) return
-    let frame = 0
     let animation = 0
     const draw = () => {
       const width = canvas.clientWidth
@@ -92,7 +91,6 @@ function SignalCanvas({ analyser, mode }: { analyser: AnalyserNode | null; mode:
         }
         context.stroke()
       }
-      frame++
       animation = requestAnimationFrame(draw)
     }
     animation = requestAnimationFrame(draw)
@@ -103,7 +101,6 @@ function SignalCanvas({ analyser, mode }: { analyser: AnalyserNode | null; mode:
 function makeBars(count: number, seed: number) {
   return Array.from({ length: count }, (_, i) => Math.max(5, Math.round((.28 + .72 * Math.abs(Math.sin(i * .095 + seed))) * (.25 + .75 * Math.abs(Math.sin(i * .41 + seed * 2.2))) * 100)))
 }
-const demoSpectrum = Array.from({ length: 76 }, (_, i) => Math.round(8 + Math.abs(Math.sin(i * .21) * Math.cos(i * .083)) * 75 + (i % 5) * 2))
 
 function Deck({ deck, accent, onAudioStart }: { deck: 'A' | 'B'; accent: 'lime' | 'violet'; onAudioStart: (audio: HTMLAudioElement) => Promise<void> }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -151,6 +148,7 @@ function App() {
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [projectName, setProjectName] = useState('Untitled session')
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const connectedAudioRef = useRef(new WeakSet<HTMLAudioElement>())
   async function connectAudio(audio: HTMLAudioElement) {
@@ -158,12 +156,13 @@ function App() {
     if (!AudioContextClass) throw new Error('Web Audio API is not supported in this browser.')
     const audioContext = audioContextRef.current ?? new AudioContextClass()
     audioContextRef.current = audioContext
-    let node = analyser
+    let node = analyserRef.current ?? analyser
     if (!node) {
       node = audioContext.createAnalyser()
       node.fftSize = 2048
       node.smoothingTimeConstant = 0.82
       node.connect(audioContext.destination)
+      analyserRef.current = node
       setAnalyser(node)
     }
     if (!connectedAudioRef.current.has(audio)) {
