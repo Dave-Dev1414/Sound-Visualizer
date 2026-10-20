@@ -15,6 +15,7 @@ export class AudioEngine {
   private readonly sources = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>()
   private micStream: MediaStream | null = null
   private micSource: MediaStreamAudioSourceNode | null = null
+  private micAnalyser: AnalyserNode | null = null
 
   private getContext() {
     if (!this.context) {
@@ -36,7 +37,7 @@ export class AudioEngine {
 
   getAnalyser() {
     this.getContext()
-    return this.analyser
+    return this.micAnalyser ?? this.analyser
   }
 
   async resume() {
@@ -77,7 +78,7 @@ export class AudioEngine {
     try { source.disconnect() } catch { /* no existing connections */ }
     source.connect(nodes.filters.low)
     this.updateCrossfadeGains()
-    return this.analyser!
+    return this.getAnalyser()!
   }
 
   setEQ(deck: DeckId, band: EqBand, decibels: number) {
@@ -88,15 +89,6 @@ export class AudioEngine {
   setDeckGain(deck: DeckId, decibels: number) {
     const gain = this.decks.get(deck)?.gain
     if (gain) gain.gain.setTargetAtTime(Math.pow(10, decibels / 20), this.context!.currentTime, 0.015)
-  }
-
-  setCrossfade(value: number) {
-    const position = Math.max(0, Math.min(100, value)) / 100
-    const nodesA = this.decks.get('A')
-    const nodesB = this.decks.get('B')
-    if (nodesA) nodesA.crossfade.gain.value = Math.cos(position * Math.PI / 2)
-    if (nodesB) nodesB.crossfade.gain.value = Math.sin(position * Math.PI / 2)
-    this.updateCrossfadeGains()
   }
 
   private updateCrossfadeGains() {
@@ -127,14 +119,18 @@ export class AudioEngine {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
     const context = this.getContext()
     this.micStream = stream
+    this.micAnalyser = context.createAnalyser()
+    this.micAnalyser.fftSize = 4096
+    this.micAnalyser.smoothingTimeConstant = 0.78
     this.micSource = context.createMediaStreamSource(stream)
-    this.micSource.connect(this.analyser!)
+    this.micSource.connect(this.micAnalyser)
     await this.resume()
   }
 
   disableMicrophone() {
     this.micSource?.disconnect()
     this.micSource = null
+    this.micAnalyser = null
     this.micStream?.getTracks().forEach(track => track.stop())
     this.micStream = null
   }
@@ -159,6 +155,7 @@ export class AudioEngine {
     try { await this.context?.close() } catch { /* context may already be closed */ }
     this.context = null
     this.analyser = null
+    this.micAnalyser = null
     this.master = null
     this.decks.clear()
   }
